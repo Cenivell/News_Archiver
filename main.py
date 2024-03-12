@@ -33,6 +33,16 @@ def get_list_of_posts(xml_data):
     return items
 
 
+def post_already_exists(title, file_path):
+    '''Function to check if post already exists'''
+    if not os.path.exists(file_path):
+        return False
+
+    with open(file_path, 'r', encoding='utf-8') as html_file:
+        content = html_file.read()
+        return title in content
+
+
 def save_news_to_file(news, file_path):
     '''Function to save posts as HTML file'''
     with open(file_path, 'w', encoding='utf-8') as html_file:
@@ -40,21 +50,23 @@ def save_news_to_file(news, file_path):
 
         for post in news:
             title = post.find('title').text
-            url = post.find('link').text
+            # Checking if post does not already exist
+            if not post_already_exists(title, file_path):
+                url = post.find('link').text
 
-            enclosure = post.find('.//enclosure')
-            image_url = enclosure.get('url', '') if enclosure is not None else ''  # Checking if it exists
+                enclosure = post.find('.//enclosure')
+                image_url = enclosure.get('url', '') if enclosure is not None else ''  # Checking if it exists
 
-            description_element = post.find('description')
-            description = description_element.text if description_element is not None else ''  # Checking if it exists
+                description_element = post.find('description')
+                description = description_element.text if description_element is not None else ''  # Checking if it exists
 
-            # Limit description to 100 characters
-            limited_description = description[:100] if description else ''
+                # Limit description to 100 characters
+                limited_description = description[:100] if description else ''
 
-            html_file.write(f'<h2>{title}</h2>\n')
-            html_file.write(f'<p><a href="{url}">Read more</a></p>\n')
-            html_file.write(f'<img src="{image_url}" alt="{title}">\n')
-            html_file.write(f'<p>{limited_description}</p>\n')
+                html_file.write(f'<h2>{title}</h2>\n')
+                html_file.write(f'<p><a href="{url}">Read more</a></p>\n')
+                html_file.write(f'<img src="{image_url}" alt="{title}">\n')
+                html_file.write(f'<p>{limited_description}</p>\n')
 
         html_file.write('</body>\n</html>')
 
