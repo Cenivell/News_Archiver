@@ -13,9 +13,11 @@
 # Технічне завдання:
 # 1) Стягнути новини з RSS-стрічки сайту pravda.com.ua (https://www.pravda.com.ua/rss/).
 # 2) Бібліотеки, окрім вбудованих: re, os, datetime, requests.
+
 import os
 import datetime
 import requests
+import xml.etree.ElementTree as ET
 
 
 def fetch_rss(url):
@@ -24,28 +26,47 @@ def fetch_rss(url):
     return response.text if response.status_code == 200 else None
 
 
+def get_list_of_posts(xml_data):
+    '''Function to get a list of posts'''
+    root = ET.fromstring(xml_data)
+    items = root.findall('.//item')
+    return items
+
+
 def save_news_to_file(news, file_path):
-    '''Function to save news to a text file'''
-    with open(file_path, 'w', encoding='utf-8') as file:
-        file.write('<meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> \n')
-        file.write(news)
+    '''Function to save posts as HTML file'''
+    with open(file_path, 'w', encoding='utf-8') as html_file:
+        html_file.write('<html>\n<head>\n<title>RSS Feed</title>\n</head>\n<body>\n')
+
+        for post in news:
+            title = post.find('title').text
+            url = post.find('link').text
+
+            enclosure = post.find('.//enclosure')
+            image_url = enclosure.get('url', '') if enclosure is not None else ''  # Checking if it exists
+
+            description_element = post.find('description')
+            description = description_element.text if description_element is not None else ''  # Checking if it exists
+
+            # Limit description to 100 characters
+            limited_description = description[:100] if description else ''
+
+            html_file.write(f'<h2>{title}</h2>\n')
+            html_file.write(f'<p><a href="{url}">Read more</a></p>\n')
+            html_file.write(f'<img src="{image_url}" alt="{title}">\n')
+            html_file.write(f'<p>{limited_description}</p>\n')
+
+        html_file.write('</body>\n</html>')
 
 
-# RSS feed URL
 rss_url = 'https://www.pravda.com.ua/rss/'
-
-# Fetching RSS content
-rss_content = fetch_rss(rss_url)
-
-if rss_content:
-    # Saving news
-    current_datetime = datetime.datetime.now().strftime('%Y-%m-%d')
-    new_folder_path = 'news'
-    if not os.path.exists(new_folder_path):
-        os.makedirs(new_folder_path)
-    file_path = f'news/news_{current_datetime}.html'
-    save_news_to_file(rss_content, file_path)
-    print(f"News successfully saved to {file_path}")
-else:
-    print("Failed to fetch RSS content.")
+current_datetime = datetime.datetime.now().strftime('%Y-%m-%d')
+news_folder_path = 'news'
+# If news folder doesn't exist create one
+if not os.path.exists(news_folder_path):
+    os.makedirs(news_folder_path)
+file_path = f'news/news_{current_datetime}.html'
+rss_data = fetch_rss(rss_url)
+posts = get_list_of_posts(rss_data)
+save_news_to_file(posts, file_path)
 
