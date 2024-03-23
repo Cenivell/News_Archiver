@@ -15,9 +15,10 @@
 # 2) Бібліотеки, окрім вбудованих: re, os, datetime, requests.
 
 import os
+import re
+import sqlite3
 import datetime
 import requests
-import re
 
 
 def fetch_rss(url):
@@ -33,14 +34,10 @@ def get_list_of_posts(data):
     return posts
 
 
-def post_already_exists(title, file_path):
-    '''Function to check if post already exists'''
-    if not os.path.exists(file_path):
-        return False
-
-    with open(file_path, 'r', encoding='utf-8') as html_file:
-        content = html_file.read()
-        return title in content
+def post_already_exists(cursor, title):
+    '''Function to check if a post already exists'''
+    cursor.execute("SELECT * FROM news WHERE title = ?", (title,))
+    return cursor.fetchone() is not None
 
 
 def save_news_to_file(news, file_path):
@@ -58,13 +55,21 @@ def save_news_to_file(news, file_path):
                 link = link_match.group(1)
                 description = description_match.group(1) if description_match else ''
                 image_url = image_match.group(1) if image_match else ''
-                # Checking if post does not already exist
-                if not post_already_exists(title, file_path):
-                    html_file.write(f'<img src="{image_url}">\n')  # Add image tag
-                    html_file.write(f'<h2>{title}</h2>\n')
-                    html_file.write(f'<p><a href="{link}">Read more</a></p>\n')
-                    html_file.write(f'<p>{description}</p>\n')
-
+                try:
+                    # Check if the post already exists
+                    if not post_already_exists(cursor, title):
+                        cursor.execute("INSERT INTO news (day, title, link) VALUES (?, ?, ?)",
+                                       (current_datetime, title, link))
+                        connection.commit()
+                        html_file.write(f'<img src="{image_url}">\n')  # Add image tag
+                        html_file.write(f'<h2>{title}</h2>\n')
+                        html_file.write(f'<p><a href="{link}">Read more</a></p>\n')
+                        html_file.write(f'<p>{description}</p>\n')
+                        print("Post successfully added")
+                    else:
+                        print("Post already exists")
+                except Exception as e:
+                    print("An error occurred: ", e)
         html_file.write('</body>\n</html>')
 
 
@@ -77,5 +82,12 @@ if not os.path.exists(news_folder_path):
 file_path = f'news/news_{current_datetime}.html'
 rss_data = fetch_rss(rss_url)
 posts = get_list_of_posts(rss_data)
+connection = sqlite3.connect('news_archive.db')
+cursor = connection.cursor()
+cursor.execute(f'''CREATE TABLE IF NOT EXISTS news
+                (day DATETIME,title VARCHAR(50) PRIMARY KEY, link VARCHAR(50))''')
 save_news_to_file(posts, file_path)
+# Close the cursor and connection
+cursor.close()
+connection.close()
 
