@@ -17,7 +17,7 @@
 import os
 import datetime
 import requests
-import xml.etree.ElementTree as ET
+import re
 
 
 def fetch_rss(url):
@@ -26,11 +26,11 @@ def fetch_rss(url):
     return response.text if response.status_code == 200 else None
 
 
-def get_list_of_posts(xml_data):
+def get_list_of_posts(data):
     '''Function to get a list of posts'''
-    root = ET.fromstring(xml_data)
-    items = root.findall('.//item')
-    return items
+    pattern = r'<item>(.*?)</item>'
+    posts = re.findall(pattern, data, re.DOTALL)
+    return posts
 
 
 def post_already_exists(title, file_path):
@@ -45,28 +45,25 @@ def post_already_exists(title, file_path):
 
 def save_news_to_file(news, file_path):
     '''Function to save posts as HTML file'''
-    with open(file_path, 'w', encoding='utf-8') as html_file:
+    with open(file_path, 'a', encoding='utf-8') as html_file:
         html_file.write('<html>\n<head>\n<title>RSS Feed</title>\n</head>\n<body>\n')
 
         for post in news:
-            title = post.find('title').text
-            # Checking if post does not already exist
-            if not post_already_exists(title, file_path):
-                url = post.find('link').text
-
-                enclosure = post.find('.//enclosure')
-                image_url = enclosure.get('url', '') if enclosure is not None else ''  # Checking if it exists
-
-                description_element = post.find('description')
-                description = description_element.text if description_element is not None else ''  # Checking if it exists
-
-                # Limit description to 100 characters
-                limited_description = description[:100] if description else ''
-
-                html_file.write(f'<h2>{title}</h2>\n')
-                html_file.write(f'<p><a href="{url}">Read more</a></p>\n')
-                html_file.write(f'<img src="{image_url}" alt="{title}">\n')
-                html_file.write(f'<p>{limited_description}</p>\n')
+            title_match = re.search('<title>(.*?)</title>', post)
+            link_match = re.search('<link>(.*?)</link>', post)
+            description_match = re.search('<description>(.*?)</description>', post)
+            image_match = re.search('<enclosure\s+url="(.*?)"', post)
+            if title_match and link_match:
+                title = title_match.group(1)
+                link = link_match.group(1)
+                description = description_match.group(1) if description_match else ''
+                image_url = image_match.group(1) if image_match else ''
+                # Checking if post does not already exist
+                if not post_already_exists(title, file_path):
+                    html_file.write(f'<img src="{image_url}">\n')  # Add image tag
+                    html_file.write(f'<h2>{title}</h2>\n')
+                    html_file.write(f'<p><a href="{link}">Read more</a></p>\n')
+                    html_file.write(f'<p>{description}</p>\n')
 
         html_file.write('</body>\n</html>')
 
