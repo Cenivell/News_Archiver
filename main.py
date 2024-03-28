@@ -42,6 +42,12 @@ def post_already_exists(cursor, title):
 
 def save_news_to_file(news, file_path):
     '''Function to save posts as HTML file'''
+    # Connecting to the database
+    connection = sqlite3.connect('news_archive.db')
+    cursor = connection.cursor()
+    cursor.execute(f'''CREATE TABLE IF NOT EXISTS news
+                    (day DATETIME, title VARCHAR(50) PRIMARY KEY, link VARCHAR(50))''')
+
     with open(file_path, 'a', encoding='utf-8') as html_file:
         html_file.write('<html>\n<head>\n<title>RSS Feed</title>\n</head>\n<body>\n')
 
@@ -60,7 +66,6 @@ def save_news_to_file(news, file_path):
                     if not post_already_exists(cursor, title):
                         cursor.execute("INSERT INTO news (day, title, link) VALUES (?, ?, ?)",
                                        (current_datetime, title, link))
-                        connection.commit()
                         html_file.write(f'<img src="{image_url}">\n')  # Add image tag
                         html_file.write(f'<h2>{title}</h2>\n')
                         html_file.write(f'<p><a href="{link}">Read more</a></p>\n')
@@ -72,6 +77,12 @@ def save_news_to_file(news, file_path):
                     print("An error occurred: ", e)
         html_file.write('</body>\n</html>')
 
+    # Commit the changes
+    connection.commit()
+    # Close the cursor and connection
+    cursor.close()
+    connection.close()
+
 
 rss_url = 'https://www.pravda.com.ua/rss/'
 current_datetime = datetime.datetime.now().strftime('%Y-%m-%d')
@@ -82,12 +93,5 @@ if not os.path.exists(news_folder_path):
 file_path = f'news/news_{current_datetime}.html'
 rss_data = fetch_rss(rss_url)
 posts = get_list_of_posts(rss_data)
-connection = sqlite3.connect('news_archive.db')
-cursor = connection.cursor()
-cursor.execute(f'''CREATE TABLE IF NOT EXISTS news
-                (day DATETIME,title VARCHAR(50) PRIMARY KEY, link VARCHAR(50))''')
 save_news_to_file(posts, file_path)
-# Close the cursor and connection
-cursor.close()
-connection.close()
 
